@@ -49,6 +49,8 @@ brew install python-tk  # 다른 Python 버전 사용 시
 #### Windows
 Windows에서는 대부분의 Python 설치 시 Tkinter가 함께 설치됩니다. 별도 설치가 필요 없습니다.
 
+더 추가될 예정
+
 #### Linux
 ```
 sudo apt-get install python3-tk  # Debian/Ubuntu
