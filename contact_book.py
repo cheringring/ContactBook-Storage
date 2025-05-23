@@ -37,7 +37,7 @@ class ContactDialog(tk.Toplevel):
         self.contact = contact
         self.result = False
         self.theme = theme
-        
+
         # 스타일 설정
         self.style = ttk.Style()
         
@@ -48,12 +48,14 @@ class ContactDialog(tk.Toplevel):
             button_bg = "#3498db"
             button_fg = "white"
             save_bg = "#2ecc71"
+            status_bg = "#ecf0f1"
         else:  # dark 테마
             bg_color = "#2c3e50"
             fg_color = "#ecf0f1"
             button_bg = "#3498db"
             button_fg = "#ecf0f1"
             save_bg = "#27ae60"
+            status_bg = "#2c3e50"
         
         self.style.configure("Dialog.TFrame", background=bg_color)
         self.style.configure("Dialog.TLabel", background=bg_color, foreground=fg_color, font=('Arial', 11))
@@ -486,7 +488,7 @@ class ContactBookApp:
         self.tree.bind("<Double-1>", self.on_double_click)
         
         # 상태 표시줄 추가
-        self.status_label = ttk.Label(self.root, text="준비 완료", style="Status.TLabel", anchor=tk.W, padding=(10, 2))
+        self.status_label = ttk.Label(self.root, text="준비 완료", style="Status.TLabel", anchor=tk.W, padding=(10, 8))
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
     
     def show_add_dialog(self):
@@ -628,7 +630,7 @@ class ContactBookApp:
         # 현재 시간 표시
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         contact_count = len(self.contact_manager.get_all_contacts())
-        status_text = f"연락처 수: {contact_count} | 마지막 업데이트: {current_time}"
+        status_text = f"연락처 수: {contact_count}  |  마지막 업데이트: {current_time}"
         self.status_label.config(text=status_text)
         
         # 1초마다 업데이트
