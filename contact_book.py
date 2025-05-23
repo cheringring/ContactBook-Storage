@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, font
 import os
+import time
 from contact_manager import ContactManager
 from PIL import Image, ImageTk  # 이미지 처리를 위한 Pillow 라이브러리
 
@@ -8,7 +9,7 @@ from PIL import Image, ImageTk  # 이미지 처리를 위한 Pillow 라이브러
 class ContactDialog(tk.Toplevel):
     """연락처 정보 입력 대화상자"""
     
-    def __init__(self, parent, contact_manager, title="새 연락처", contact=None):
+    def __init__(self, parent, contact_manager, title="새 연락처", contact=None, theme="light"):
         """
         연락처 정보 입력 대화상자 초기화
         
@@ -17,31 +18,54 @@ class ContactDialog(tk.Toplevel):
             contact_manager: 연락처 관리자
             title: 대화상자 제목
             contact: 수정할 연락처 정보 (None인 경우 새 연락처 추가)
+            theme: 테마 (light 또는 dark)
         """
         super().__init__(parent)
         self.title(title)
         self.geometry("400x250")
         self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
+        self.transient(parent)  # 부모 윈도우에 종속
+        self.grab_set()  # 모달 대화상자로 설정
+        
+        # 부모 윈도우의 핸드라이팅 폰트 가져오기 (제목용)
+        if hasattr(parent, 'handwriting_font'):
+            self.handwriting_font = parent.handwriting_font
+        else:
+            self.handwriting_font = "Arial"
         
         self.contact_manager = contact_manager
         self.contact = contact
         self.result = False
+        self.theme = theme
         
         # 스타일 설정
         self.style = ttk.Style()
-        self.style.configure("Dialog.TFrame", background="#f5f7fa")
-        self.style.configure("Dialog.TLabel", background="#f5f7fa", font=('Arial', 11))
+        
+        if self.theme == "light":
+            # 라이트 테마
+            bg_color = "#f5f7fa"
+            fg_color = "#2c3e50"
+            button_bg = "#3498db"
+            button_fg = "white"
+            save_bg = "#2ecc71"
+        else:  # dark 테마
+            bg_color = "#2c3e50"
+            fg_color = "#ecf0f1"
+            button_bg = "#3498db"
+            button_fg = "#ecf0f1"
+            save_bg = "#27ae60"
+        
+        self.style.configure("Dialog.TFrame", background=bg_color)
+        self.style.configure("Dialog.TLabel", background=bg_color, foreground=fg_color, font=('Arial', 11))
         self.style.configure("Dialog.TButton", font=('Arial', 11, 'bold'), padding=6)
         
         # 저장 버튼 스타일
-        self.style.configure("Save.TButton", background="#2ecc71", foreground="white")
+        self.style.configure("Save.TButton", background=save_bg, foreground=button_fg)
         self.style.map("Save.TButton", 
                       background=[('active', '#27ae60'), ('pressed', '#219653')])
         
         # 배경색 설정
-        self.configure(background="#f5f7fa")
+        self.configure(background=bg_color)
         
         self.create_widgets()
         self.center_window()
@@ -59,14 +83,14 @@ class ContactDialog(tk.Toplevel):
             self.original_phone = None
     
     def create_widgets(self):
-        """UI 위젯 생성"""
+        """대화상자 위젯 생성"""
         # 메인 프레임
         main_frame = ttk.Frame(self, padding="20", style="Dialog.TFrame")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 이름 입력
+        # 이름 입력 필드
         name_label = ttk.Label(main_frame, text="이름:", style="Dialog.TLabel")
-        name_label.grid(row=0, column=0, sticky=tk.W, pady=10)
+        name_label.grid(row=0, column=0, sticky=tk.W, pady=5)
         
         self.name_var = tk.StringVar()
         name_entry = ttk.Entry(main_frame, textvariable=self.name_var, 
@@ -74,9 +98,9 @@ class ContactDialog(tk.Toplevel):
         name_entry.grid(row=0, column=1, sticky=tk.EW, pady=10)
         name_entry.focus_set()  # 포커스 설정
         
-        # 전화번호 입력
+        # 전화번호 입력 필드
         phone_label = ttk.Label(main_frame, text="전화번호:", style="Dialog.TLabel")
-        phone_label.grid(row=1, column=0, sticky=tk.W, pady=10)
+        phone_label.grid(row=1, column=0, sticky=tk.W, pady=5)
         
         self.phone_var = tk.StringVar()
         phone_entry = ttk.Entry(main_frame, textvariable=self.phone_var, 
@@ -85,12 +109,15 @@ class ContactDialog(tk.Toplevel):
         
         # 그룹 선택 (콤보박스)
         group_label = ttk.Label(main_frame, text="그룹:", style="Dialog.TLabel")
-        group_label.grid(row=2, column=0, sticky=tk.W, pady=10)
+        group_label.grid(row=2, column=0, sticky=tk.W, pady=5)
         
+        self.group_values = ("가족", "친구", "기타")
         self.group_var = tk.StringVar()
-        self.group_values = ["가족", "친구", "기타"]
-        self.group_var.set("기타")  # 기본값
-        
+        if self.contact:
+            self.group_var.set(self.contact["group"])
+        else:
+            self.group_var.set("기타")  # 기본값
+            
         group_combobox = ttk.Combobox(main_frame, 
                                      textvariable=self.group_var,
                                      values=self.group_values,
@@ -178,51 +205,80 @@ class ContactBookApp:
             root: Tkinter 루트 윈도우
         """
         self.root = root
-        self.root.title("연락처 관리 시스템")
+        self.root.title("ContactBook 📝")
         self.root.geometry("700x500")
         self.root.resizable(True, True)
+        
+        # 테마 설정 (기본값: light)
+        self.theme = tk.StringVar(value="light")
         
         # 테마 설정
         self.style = ttk.Style()
         try:
-            # Windows에서는 'vista' 테마를 사용
-            self.style.theme_use('clam')
+            # 테마 설정 시도
+            self.style.theme_use("clam")
         except tk.TclError:
             # macOS나 Linux에서는 기본 테마 사용
             pass
+        
+        # 사용 가능한 폰트 확인 및 손글씨 스타일 폰트 선택
+        available_fonts = font.families()
+        
+        # 디버깅: 사용 가능한 모든 폰트 출력
+        print("=== 사용 가능한 모든 폰트 ===")
+        for f in sorted(available_fonts):
+            print(f)
+        print("===========================")
+        
+        # 한글 손글씨 폰트 목록 (Mac에서 사용 가능한 폰트)
+        korean_handwriting_fonts = [
+            # 동글동글한 느낌의 폰트를 우선 배치
+            "Nanum Pen Script", "Nanum Brush Script", "NanumPen", "NanumBarunpen",
+            "KCC-eunyoung", "KCC-Ganpan", "KCC-Hanbit",
+            # 일반 한글 폰트
+            "AppleSDGothicNeo-Regular", "AppleSDGothicNeo-Bold",
+            "NanumMyeongjo", "Nanum Gothic", "Nanum Myeongjo",
+            "KoPubBatang", "KoPubDotum", 
+            "HanSans", "NanumGothic", 
+            "AppleGothic", "Gungsuh", "HYGothic", "HCR Batang", "HCR Dotum",
+            "Noto Sans KR", "Noto Serif KR", "Spoqa Han Sans", "Yoon Gothic",
+            "Yoon Myungjo"
+        ]
+        
+        # 영문 손글씨 폰트 목록
+        english_handwriting_fonts = [
+            "Comic Sans MS", "Brush Script MT", "Bradley Hand", "Chalkboard", 
+            "Marker Felt", "Noteworthy", "Herculanum", "Papyrus", "Snell Roundhand"
+        ]
+        
+        # 먼저 한글 폰트 확인
+        self.handwriting_font = None
+        for f in korean_handwriting_fonts:
+            if f in available_fonts:
+                self.handwriting_font = f
+                print(f"선택된 한글 폰트: {f}")  # 디버깅용 출력
+                break
+        
+        # 한글 폰트가 없으면 영문 폰트 확인
+        if not self.handwriting_font:
+            for f in english_handwriting_fonts:
+                if f in available_fonts:
+                    self.handwriting_font = f
+                    print(f"선택된 영문 폰트: {f}")  # 디버깅용 출력
+                    break
+        
+        # 손글씨 폰트가 없으면 기본 폰트 사용
+        if not self.handwriting_font:
+            self.handwriting_font = "Arial"
+            print("기본 폰트 사용: Arial")  # 디버깅용 출력
         
         # 커스텀 폰트 설정
         default_font = font.nametofont("TkDefaultFont")
         default_font.configure(size=11)
         self.root.option_add("*Font", default_font)
         
-        # 스타일 설정
-        self.style.configure("TFrame", background="#f5f7fa")
-        self.style.configure("TLabel", background="#f5f7fa", font=('Arial', 11))
-        self.style.configure("TButton", font=('Arial', 11, 'bold'), padding=6)
-        self.style.map('TButton', 
-                       background=[('active', '#3498db'), ('pressed', '#2980b9')],
-                       foreground=[('active', 'white'), ('pressed', 'white')])
-        self.style.configure("Treeview", font=('Arial', 10), rowheight=25)
-        self.style.configure("Treeview.Heading", font=('Arial', 11, 'bold'))
-        
-        # 커스텀 버튼 스타일
-        self.style.configure("Add.TButton", background="#2ecc71", foreground="white")
-        self.style.map("Add.TButton", 
-                       background=[('active', '#27ae60'), ('pressed', '#219653')])
-        
-        self.style.configure("Delete.TButton", background="#e74c3c", foreground="white")
-        self.style.map("Delete.TButton", 
-                       background=[('active', '#c0392b'), ('pressed', '#a93226')])
-        
-        # 헤더 스타일
-        self.style.configure("Header.TLabel", 
-                            font=('Arial', 20, 'bold'), 
-                            foreground="#2c3e50",
-                            background="#f5f7fa")
-        
-        # 배경색 설정
-        self.root.configure(background="#f5f7fa")
+        # 스타일 설정 (초기 테마 적용)
+        self.apply_theme()
         
         # 연락처 관리자 초기화
         self.contact_manager = ContactManager()
@@ -233,53 +289,147 @@ class ContactBookApp:
         # 연락처 목록 로드
         self.load_contacts()
         
-        # 애니메이션 효과 시작
-        self.animate_title()
+        # 상태 표시줄 업데이트 시작
+        self.update_status_bar()
     
-    def animate_title(self):
-        """제목 애니메이션 효과"""
-        colors = ["#3498db", "#2980b9", "#1abc9c", "#16a085", "#2ecc71", "#27ae60"]
-        current_color = self.title_label.cget("foreground")
+    def apply_theme(self):
+        """현재 테마 적용"""
+        if self.theme.get() == "light":
+            # 라이트 테마
+            bg_color = "#f5f7fa"
+            fg_color = "#2c3e50"
+            button_bg = "#3498db"
+            button_fg = "white"
+            add_bg = "#2ecc71"
+            delete_bg = "#e74c3c"
+            tree_bg = "#ffffff"
+            tree_fg = "#2c3e50"
+            status_bg = "#e0e0e0"
+            title_color = "#2c3e50"
+        else:
+            # 다크 테마
+            bg_color = "#2c3e50"
+            fg_color = "#ecf0f1"
+            button_bg = "#3498db"
+            button_fg = "#ecf0f1"
+            add_bg = "#27ae60"
+            delete_bg = "#c0392b"
+            tree_bg = "#34495e"
+            tree_fg = "#ecf0f1"
+            status_bg = "#34495e"
+            title_color = "#ecf0f1"
         
-        # 색상 순환
-        next_index = (colors.index(current_color) + 1) % len(colors) if current_color in colors else 0
-        next_color = colors[next_index]
+        # 기본 스타일
+        self.style.configure("TFrame", background=bg_color)
+        self.style.configure("TLabel", 
+                            background=bg_color, 
+                            foreground=fg_color, 
+                            font=('Arial', 11))
         
-        # 색상 변경
-        self.title_label.configure(foreground=next_color)
+        self.style.configure("TButton", 
+                            font=('Arial', 11, 'bold'), 
+                            padding=6, 
+                            background=button_bg, 
+                            foreground=button_fg)
         
-        # 1초 후 다시 호출
-        self.root.after(2000, self.animate_title)
+        self.style.map('TButton', 
+                       background=[('active', '#2980b9'), ('pressed', '#2471a3')],
+                       foreground=[('active', button_fg), ('pressed', button_fg)])
+        
+        # 트리뷰 스타일
+        self.style.configure("Treeview", 
+                            font=('Arial', 10), 
+                            rowheight=25, 
+                            background=tree_bg, 
+                            foreground=tree_fg, 
+                            fieldbackground=tree_bg)
+        
+        self.style.configure("Treeview.Heading", 
+                            font=('Arial', 11, 'bold'), 
+                            background=bg_color, 
+                            foreground=fg_color)
+        
+        # 커스텀 버튼 스타일
+        self.style.configure("Add.TButton", background=add_bg, foreground=button_fg)
+        self.style.map("Add.TButton", 
+                       background=[('active', '#27ae60'), ('pressed', '#219653')])
+        
+        self.style.configure("Delete.TButton", background=delete_bg, foreground=button_fg)
+        self.style.map("Delete.TButton", 
+                       background=[('active', '#c0392b'), ('pressed', '#a93226')])
+        
+        # 헤더 스타일
+        self.style.configure("Header.TLabel", 
+                            font=('Arial', 20, 'bold'), 
+                            foreground=fg_color,
+                            background=bg_color)
+        
+        # 노트 스타일 제목 (손글씨 효과)
+        self.style.configure("Note.TLabel", 
+                           font=(self.handwriting_font, 28, 'bold'), 
+                           foreground=title_color,
+                           background=bg_color)
+        
+        # 상태 표시줄 스타일
+        self.style.configure("Status.TLabel", 
+                           background=status_bg, 
+                           foreground=fg_color, 
+                           font=('Arial', 9))
+        
+        # 배경색 설정
+        self.root.configure(background=bg_color)
+        
+        # 이미 생성된 위젯이 있으면 업데이트
+        if hasattr(self, 'main_frame'):
+            self.main_frame.configure(style="TFrame")
+            self.title_label.configure(style="Note.TLabel")
+            self.status_label.configure(style="Status.TLabel")
     
     def create_widgets(self):
         """UI 위젯 생성"""
         # 메인 프레임
-        main_frame = ttk.Frame(self.root, padding="20", style="TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        self.main_frame = ttk.Frame(self.root, padding="20", style="TFrame")
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 제목 프레임
-        title_frame = ttk.Frame(main_frame, style="TFrame")
+        # 제목 및 테마 전환 프레임
+        title_frame = ttk.Frame(self.main_frame, style="TFrame")
         title_frame.pack(fill=tk.X, pady=(0, 20))
         
         # 빈 공간으로 중앙 정렬 효과 만들기
         ttk.Label(title_frame, text="", style="TLabel").pack(side=tk.LEFT, expand=True)
         
-        # 제목 레이블 (그라데이션 효과는 애니메이션으로 구현)
-        self.title_label = ttk.Label(title_frame, text="연락처 관리 시스템", 
-                                   font=('Arial', 24, 'bold'), 
+        # 제목 레이블 
+        self.title_label = ttk.Label(title_frame, text="ContactBook 📝", 
+                                   font=(self.handwriting_font, 28, 'bold'), 
                                    foreground="#3498db",
-                                   style="Header.TLabel")
+                                   style="Note.TLabel")
         self.title_label.pack(side=tk.LEFT)
         
         # 빈 공간으로 중앙 정렬 효과 만들기
         ttk.Label(title_frame, text="", style="TLabel").pack(side=tk.LEFT, expand=True)
         
+        # 테마 전환 버튼
+        theme_frame = ttk.Frame(title_frame, style="TFrame")
+        theme_frame.pack(side=tk.RIGHT)
+        
+        light_radio = ttk.Radiobutton(theme_frame, text="라이트", 
+                                     variable=self.theme, 
+                                     value="light", 
+                                     command=self.apply_theme)
+        light_radio.pack(side=tk.LEFT, padx=5)
+        
+        dark_radio = ttk.Radiobutton(theme_frame, text="다크", 
+                                    variable=self.theme, 
+                                    value="dark", 
+                                    command=self.apply_theme)
+        dark_radio.pack(side=tk.LEFT, padx=5)
+        
         # 구분선 추가
-        separator = ttk.Separator(main_frame, orient="horizontal")
+        separator = ttk.Separator(self.main_frame, orient="horizontal")
         separator.pack(fill=tk.X, pady=(0, 20))
         
         # 검색 및 추가 프레임
-        search_frame = ttk.Frame(main_frame, style="TFrame")
+        search_frame = ttk.Frame(self.main_frame, style="TFrame")
         search_frame.pack(fill=tk.X, pady=(0, 10))
         
         # 검색 레이블 및 입력 필드
@@ -300,14 +450,14 @@ class ContactBookApp:
         add_button.pack(side=tk.RIGHT, padx=5)
         
         # 연락처 목록 레이블
-        list_label = ttk.Label(main_frame, text="연락처 목록", 
+        list_label = ttk.Label(self.main_frame, text="연락처 목록", 
                               font=('Arial', 12, 'bold'), 
                               foreground="#2c3e50",
                               style="TLabel")
         list_label.pack(anchor=tk.W, pady=(0, 5))
         
         # 연락처 목록 프레임
-        list_frame = ttk.Frame(main_frame, style="TFrame")
+        list_frame = ttk.Frame(self.main_frame, style="TFrame")
         list_frame.pack(fill=tk.BOTH, expand=True)
         
         # 연락처 목록 트리뷰
@@ -334,24 +484,30 @@ class ContactBookApp:
         self.tree.bind("<Button-3>", self.show_context_menu)
         # 더블 클릭 이벤트 바인딩
         self.tree.bind("<Double-1>", self.on_double_click)
+        
+        # 상태 표시줄 추가
+        self.status_label = ttk.Label(self.root, text="준비 완료", style="Status.TLabel", anchor=tk.W, padding=(10, 2))
+        self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
     
     def show_add_dialog(self):
         """새 연락처 추가 대화상자 표시"""
-        dialog = ContactDialog(self.root, self.contact_manager, "새 연락처")
+        dialog = ContactDialog(self.root, self.contact_manager, "새 연락처", theme=self.theme.get())
         self.root.wait_window(dialog)
         
         # 연락처가 추가되었으면 목록 새로고침
         if dialog.result:
             self.load_contacts()
+            self.status_label.config(text="새 연락처가 추가되었습니다.")
     
     def show_edit_dialog(self, contact):
         """연락처 수정 대화상자 표시"""
-        dialog = ContactDialog(self.root, self.contact_manager, "연락처 수정", contact)
+        dialog = ContactDialog(self.root, self.contact_manager, "연락처 수정", contact, theme=self.theme.get())
         self.root.wait_window(dialog)
         
         # 연락처가 수정되었으면 목록 새로고침
         if dialog.result:
             self.load_contacts()
+            self.status_label.config(text="연락처가 수정되었습니다.")
     
     def on_double_click(self, event):
         """연락처 더블 클릭 시 수정 대화상자 표시"""
@@ -466,6 +622,17 @@ class ContactBookApp:
         else:
             # 전체 목록 표시
             self.load_contacts()
+    
+    def update_status_bar(self):
+        """상태 표시줄 업데이트"""
+        # 현재 시간 표시
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        contact_count = len(self.contact_manager.get_all_contacts())
+        status_text = f"연락처 수: {contact_count} | 마지막 업데이트: {current_time}"
+        self.status_label.config(text=status_text)
+        
+        # 1초마다 업데이트
+        self.root.after(1000, self.update_status_bar)
 
 
 if __name__ == "__main__":
